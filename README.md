@@ -357,8 +357,6 @@ Powered by Lucky
 
 Powered by Cloudflare Workers
 
-Designed by Paul Wei
-
 Engineered with ChatGPT
 
 ---
