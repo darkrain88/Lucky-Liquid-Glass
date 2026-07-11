@@ -9,26 +9,32 @@ export default {
       }
       const target = url.searchParams.get("target");
       if (!target) return new Response("Missing target",{status:400});
+      const ruleName = url.searchParams.get("ruleName") || await env.STUN.get("ruleName") || "Lucky STUN";
       const now = new Date().toISOString();
-      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       await env.STUN.put("target", target);
+      await env.STUN.put("ruleName", ruleName);
       await env.STUN.put("lastUpdate", now);
-      await env.STUN.put("lastClient", ip);
-      return Response.json({success:true,target,lastUpdate:now});
+      return Response.json({success:true,ruleName,target,lastUpdate:now});
     }
 
     if (url.pathname === "/api/status") {
       return Response.json({
+        ruleName: await env.STUN.get("ruleName") || "Lucky STUN",
         target: await env.STUN.get("target"),
-        lastUpdate: await env.STUN.get("lastUpdate"),
-        lastClient: await env.STUN.get("lastClient")
+        lastUpdate: await env.STUN.get("lastUpdate")
       });
     }
 
     if (url.pathname === "/status") {
+      const ruleName = await env.STUN.get("ruleName") || "Lucky STUN";
       const target = await env.STUN.get("target") || "Not configured";
       const lastUpdate = await env.STUN.get("lastUpdate") || "-";
-      const lastClient = await env.STUN.get("lastClient") || "-";
+      const escapeHtml = (value) => value.replace(/[&<>'"]/g, (character) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+      })[character]);
+      const safeRuleName = escapeHtml(ruleName);
+      const safeTarget = escapeHtml(target);
+      const safeLastUpdate = escapeHtml(lastUpdate);
       const html = `<!doctype html>
 <html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -67,15 +73,26 @@ footer{text-align:center;opacity:.7;margin-top:28px;font-size:.82rem}
 <div class="card">
 <h1>🚀 Lucky STUN</h1>
 <div class="status"><div class="dot"></div>Online</div>
-<div class="row"><div class="label">Current Target</div><div class="value" id="target">${target}</div></div>
-<div class="row"><div class="label">Last Update</div><div class="value">${lastUpdate}</div></div>
-<div class="row"><div class="label">Last Client</div><div class="value">${lastClient}</div></div>
+<div class="row"><div class="label">🚀 Rule Name</div><div class="value">${safeRuleName}</div></div>
+<div class="row"><div class="label">🌐 Current URL</div><div class="value" id="target">${safeTarget}</div></div>
+<div class="row"><div class="label">🕒 Last Update</div><div class="value" id="last-update" data-value="${safeLastUpdate}">-</div></div>
 <div class="btns">
-<a class="primary" href="${target}">Open Target</a>
-<button class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('target').innerText).then(()=>alert('Copied'))">Copy URL</button>
+<a class="primary" href="${safeTarget}">Open Target</a>
+<button class="secondary" id="copy">📋 一键复制</button>
 </div>
 <footer>Powered by Lucky + Cloudflare Workers</footer>
 </div>
+<script>
+const target = document.getElementById("target");
+const lastUpdate = document.getElementById("last-update");
+const updatedAt = new Date(lastUpdate.dataset.value);
+lastUpdate.textContent = Number.isNaN(updatedAt.getTime()) ? lastUpdate.dataset.value : updatedAt.toLocaleString("zh-CN");
+document.getElementById("copy").addEventListener("click", async () => {
+  await navigator.clipboard.writeText(target.textContent);
+  alert("已复制");
+});
+setTimeout(() => location.reload(), 30000);
+</script>
 </body></html>`;
       return new Response(html,{headers:{"content-type":"text/html;charset=utf-8"}});
     }
