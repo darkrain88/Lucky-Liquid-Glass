@@ -7,6 +7,24 @@ export default {
     if (url.pathname === "/update") {
       return handleUpdate(url, env);
     }
+ 
+    const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+
+    if (
+      path &&
+      path !== "status" &&
+      path !== "api"
+    ) {
+      const json = await env.STUN.get(`${STATUS_PREFIX}${path}`);
+
+      if (!json) {
+        return new Response("Rule Not Found", { status: 404 });
+      }
+
+      const status = JSON.parse(json);
+
+      return Response.redirect(status.target, 302);
+    }
 
     if (url.pathname === "/api/status") {
       return json({
