@@ -1,5 +1,9 @@
+name = "lucky-redirect"
 main = "worker.js"
 compatibility_date = "2026-07-14"
+
 [[kv_namespaces]]
 binding = "STUN"
 id = "cdd3ff83b3b1498d872fd9c136feb581"
+
+# Configure API_KEY as a Cloudflare Worker secret.
