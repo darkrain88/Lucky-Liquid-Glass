@@ -14,11 +14,17 @@ export default {
 
     const path = normalizePathname(url.pathname);
 
-    if (
-      path &&
-      path !== "status" &&
-      path !== "api"
-    ) {
+    if (path === "api/status") {
+      return json({
+        statuses: await getStatuses(env),
+      });
+    }
+
+    if (path === "status") {
+      return html(renderPage(await getStatuses(env)));
+    }
+
+    if (path) {
       const json = await env.STUN.get(getStatusKey(path));
 
       if (!json) {
@@ -30,24 +36,7 @@ export default {
       return Response.redirect(status.target, 302);
     }
 
-    if (url.pathname === "/api/status") {
-      return json({
-        statuses: await getStatuses(env),
-      });
-    }
-
-    if (url.pathname === "/status" || url.pathname === "/status/") {
-      return html(renderPage(await getStatuses(env)));
-    }
-
-    const statuses = await getStatuses(env);
-    const target = statuses.find((status) => isValidTarget(status.target))?.target;
-
-    if (!target) {
-      return new Response("Target not configured", { status: 404 });
-    }
-
-    return Response.redirect(target, 302);
+    return new Response("Rule Not Found", { status: 404 });
   },
 };
 
