@@ -116,9 +116,49 @@ async function getStatuses(env) {
     }
   }
 
-  return statuses.sort((a, b) =>
+  const sortedStatuses = statuses.sort((a, b) =>
     a.ruleName.localeCompare(b.ruleName, "zh-CN"),
   );
+
+  return Promise.all(
+    sortedStatuses.map(async (status) => ({
+      ...status,
+      online: await isTargetOnline(status.target),
+      checkedAt: new Date().toISOString(),
+    })),
+  );
+}
+
+async function isTargetOnline(target) {
+  if (!isValidTarget(target)) {
+    return false;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(target, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        accept: "*/*",
+      },
+    });
+
+    // The target is considered reachable even when its endpoint returns 4xx.
+    // A stopped service normally causes a network error or a 5xx response.
+    if (response.body) {
+      await response.body.cancel();
+    }
+
+    return response.status < 500;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function getLegacyStatus(env) {
@@ -244,13 +284,14 @@ Commercial support is available at <a href="http://nginx.com/">nginx.com</a>.</p
 }
 
 function renderRule(status) {
-  const online = isValidTarget(status.target);
+  const online = status.online === true;
   const safeRuleName = escapeHtml(status.ruleName || "Unnamed Rule");
   const safeTarget = escapeHtml(
-    online ? status.target : "Not configured",
+    isValidTarget(status.target) ? status.target : "Not configured",
   );
   const safeHref = escapeHtml(status.target);
   const safeLastUpdate = escapeHtml(status.lastUpdate || "");
+  const safeCheckedAt = escapeHtml(status.checkedAt || "");
 
   const actions = online
     ? `<div class="btns">
@@ -276,6 +317,11 @@ ${online ? "Online" : "Offline"}
 <div class="row">
 <div class="label">Last Update</div>
 <div class="value last-update" data-value="${safeLastUpdate}">-</div>
+</div>
+
+<div class="row">
+<div class="label">Last Check</div>
+<div class="value last-update" data-value="${safeCheckedAt}">-</div>
 </div>
 
 ${actions}
@@ -529,6 +575,8 @@ for (const button of document.querySelectorAll(".copy-button")) {
     }
   });
 }
+
+setTimeout(() => location.reload(), 30000);
 </script>
 </body>
 </html>`;
